@@ -1,12 +1,7 @@
-// person5_client.bal
-// Ballerina client for Asset Management System (Person 5 deliverable)
-// Assumes API server is running at http://localhost:9090/assets
-
 import ballerina/io;
 import ballerina/http;
 import ballerina/time;
 
-// --- Types ---
 public type Component record {
     string componentId;
     string name;
@@ -16,41 +11,35 @@ public type Component record {
 public type Schedule record {
     string scheduleId;
     string task;
-    string nextDueDate; // ISO date: YYYY-MM-DD
+    string nextDueDate;
 };
 
 public type Asset record {
-    string assetTag; // unique key
+    string assetTag;
     string name;
     string faculty;
-    string status; // ACTIVE | UNDER_REPAIR | DISPOSED
-    string nextMaintenance?; // YYYY-MM-DD
+    string status;
+    string nextMaintenance?;
     Component[] components?;
     Schedule[] schedules?;
 };
 
-// --- Client configuration ---
-final string BASE_URL = "http://localhost:9090/assets"; // change if needed
+final string BASE_URL = "http://localhost:9090/assets";
 http:Client assetClient = check new (BASE_URL);
 
-// --- High-level client functions ---
-
 public function addAsset(Asset asset) returns error? {
-    // POST /add
     http:Response resp = check assetClient->post("/add", asset);
     io:println("Add asset response status: " + resp.statusCode.toString());
     return;
 }
 
 public function updateAsset(string assetTag, Asset asset) returns error? {
-    // PUT /update/{assetTag}
     http:Response resp = check assetClient->put("/update/" + assetTag, asset);
     io:println("Update asset response status: " + resp.statusCode.toString());
     return;
 }
 
 public function viewAll() returns error? {
-    // GET /all
     var res = assetClient->get("/all");
     if (res is http:Response) {
         json|error j = res.getJsonPayload();
@@ -65,7 +54,6 @@ public function viewAll() returns error? {
 }
 
 public function viewByFaculty(string faculty) returns error? {
-    // GET /faculty/{faculty}
     var res = assetClient->get("/faculty/" + faculty);
     if (res is http:Response) {
         json|error j = res.getJsonPayload();
@@ -78,7 +66,6 @@ public function viewByFaculty(string faculty) returns error? {
 }
 
 public function overdueCheck() returns error? {
-    // GET /overdue
     var res = assetClient->get("/overdue");
     if (res is http:Response) {
         json|error j = res.getJsonPayload();
@@ -91,20 +78,17 @@ public function overdueCheck() returns error? {
 }
 
 public function addComponentToAsset(string assetTag, Component component) returns error? {
-    // POST /{assetTag}/components/add
     http:Response resp = check assetClient->post("/" + assetTag + "/components/add", component);
     io:println("Add component response status: " + resp.statusCode.toString());
     return;
 }
 
 public function addScheduleToAsset(string assetTag, Schedule schedule) returns error? {
-    // POST /{assetTag}/schedules/add
     http:Response resp = check assetClient->post("/" + assetTag + "/schedules/add", schedule);
     io:println("Add schedule response status: " + resp.statusCode.toString());
     return;
 }
 
-// --- Interactive CLI helpers ---
 function readLinePrompt(string prompt) returns string {
     return io:readln(prompt);
 }
@@ -127,11 +111,9 @@ function buildAssetFromInput(boolean askForTag) returns Asset {
     return asset;
 }
 
-// --- Demo flow used in presentation ---
 public function demoFlow() returns error? {
     io:println("--- Demo flow start ---");
 
-    // 1. Add an asset
     Asset a1 = {
         assetTag: "ASSET-1001",
         name: "Dell Latitude",
@@ -143,25 +125,19 @@ public function demoFlow() returns error? {
     };
     check addAsset(a1);
 
-    // 2. Update the asset
     a1.name = "Dell Latitude - Updated";
     a1.nextMaintenance = "2025-12-01";
     check updateAsset(a1.assetTag, a1);
 
-    // 3. View all
     check viewAll();
 
-    // 4. View by faculty
     check viewByFaculty("Engineering");
 
-    // 5. Overdue check (depends on server logic)
     check overdueCheck();
 
-    // 6. Add a component
     Component comp = { componentId: "C-100", name: "Battery", description: "Lithium battery" };
     check addComponentToAsset(a1.assetTag, comp);
 
-    // 7. Add a schedule
     Schedule sched = { scheduleId: "S-100", task: "Full check", nextDueDate: "2025-11-01" };
     check addScheduleToAsset(a1.assetTag, sched);
 
@@ -169,7 +145,6 @@ public function demoFlow() returns error? {
     return;
 }
 
-// --- Main CLI ---
 public function main() returns error? {
     io:println("Asset Management Client (Person 5)\n");
     io:println("Server base: " + BASE_URL);
@@ -193,7 +168,6 @@ public function main() returns error? {
             "2" => {
                 string tag = io:readln("Asset Tag to update: ");
                 Asset asset = buildAssetFromInput(false);
-                // ensure tag is set for the payload
                 asset.assetTag = tag;
                 check updateAsset(tag, asset);
             }
