@@ -1,0 +1,5 @@
+[package]
+org = "nust"
+name = "asset_mgmt"
+version = "0.1.0"
+
