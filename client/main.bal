@@ -1,206 +1,159 @@
 import ballerina/io;
 import ballerina/http;
-import ballerina/time;
 
-public type Component record {
+final string BASE_URL = "http://localhost:9090/assets";
+http:Client assetClient = check new(BASE_URL);
+
+public type Component record {|
     string componentId;
     string name;
     string description?;
-};
+|};
 
-public type Schedule record {
+public type Schedule record {|
     string scheduleId;
     string task;
     string nextDueDate;
-};
+|};
 
-public type Asset record {
+public type Asset record {|
     string assetTag;
     string name;
     string faculty;
     string status;
     string nextMaintenance?;
-    Component[] components?;
-    Schedule[] schedules?;
-};
-
-final string BASE_URL = "http://localhost:9090/assets";
-http:Client assetClient = check new (BASE_URL);
-
-public function addAsset(Asset asset) returns error? {
-    http:Response resp = check assetClient->post("/add", asset);
-    io:println("Add asset response status: " + resp.statusCode.toString());
-    return;
-}
-
-public function updateAsset(string assetTag, Asset asset) returns error? {
-    http:Response resp = check assetClient->put("/update/" + assetTag, asset);
-    io:println("Update asset response status: " + resp.statusCode.toString());
-    return;
-}
-
-public function viewAll() returns error? {
-    var res = assetClient->get("/all");
-    if (res is http:Response) {
-        json|error j = res.getJsonPayload();
-        if (j is json) {
-            io:println("All assets:\n" + j.toJsonString());
-        } else {
-            io:println("Failed to parse response as JSON: " + j.toString());
-        }
-    } else {
-        return res;
-    }
-}
-
-public function viewByFaculty(string faculty) returns error? {
-    var res = assetClient->get("/faculty/" + faculty);
-    if (res is http:Response) {
-        json|error j = res.getJsonPayload();
-        if (j is json) {
-            io:println("Assets for faculty '" + faculty + "':\n" + j.toJsonString());
-        }
-    } else {
-        return res;
-    }
-}
-
-public function overdueCheck() returns error? {
-    var res = assetClient->get("/overdue");
-    if (res is http:Response) {
-        json|error j = res.getJsonPayload();
-        if (j is json) {
-            io:println("Overdue assets:\n" + j.toJsonString());
-        }
-    } else {
-        return res;
-    }
-}
-
-public function addComponentToAsset(string assetTag, Component component) returns error? {
-    http:Response resp = check assetClient->post("/" + assetTag + "/components/add", component);
-    io:println("Add component response status: " + resp.statusCode.toString());
-    return;
-}
-
-public function addScheduleToAsset(string assetTag, Schedule schedule) returns error? {
-    http:Response resp = check assetClient->post("/" + assetTag + "/schedules/add", schedule);
-    io:println("Add schedule response status: " + resp.statusCode.toString());
-    return;
-}
-
-function readLinePrompt(string prompt) returns string {
-    return io:readln(prompt);
-}
-
-function buildAssetFromInput(boolean askForTag) returns Asset {
-    string assetTag = askForTag ? io:readln("Asset Tag: ") : "";
-    string name = io:readln("Asset Name: ");
-    string faculty = io:readln("Faculty: ");
-    string status = io:readln("Status (ACTIVE/UNDER_REPAIR/DISPOSED): ");
-    string nextMaintenance = io:readln("Next maintenance date (YYYY-MM-DD) or leave empty: ");
-    Asset asset = {
-        assetTag: assetTag,
-        name: name,
-        faculty: faculty,
-        status: status
-    };
-    if (nextMaintenance != "") {
-        asset.nextMaintenance = nextMaintenance;
-    }
-    return asset;
-}
-
-public function demoFlow() returns error? {
-    io:println("--- Demo flow start ---");
-
-    Asset a1 = {
-        assetTag: "ASSET-1001",
-        name: "Dell Latitude",
-        faculty: "Engineering",
-        status: "ACTIVE",
-        nextMaintenance: "2025-09-01",
-        components: [],
-        schedules: []
-    };
-    check addAsset(a1);
-
-    a1.name = "Dell Latitude - Updated";
-    a1.nextMaintenance = "2025-12-01";
-    check updateAsset(a1.assetTag, a1);
-
-    check viewAll();
-
-    check viewByFaculty("Engineering");
-
-    check overdueCheck();
-
-    Component comp = { componentId: "C-100", name: "Battery", description: "Lithium battery" };
-    check addComponentToAsset(a1.assetTag, comp);
-
-    Schedule sched = { scheduleId: "S-100", task: "Full check", nextDueDate: "2025-11-01" };
-    check addScheduleToAsset(a1.assetTag, sched);
-
-    io:println("--- Demo flow complete ---");
-    return;
-}
+    Component[]? components;
+    Schedule[]? schedules;
+|};
 
 public function main() returns error? {
-    io:println("Asset Management Client (Person 5)\n");
-    io:println("Server base: " + BASE_URL);
-    io:println("1) Add asset");
-    io:println("2) Update asset");
-    io:println("3) View all assets");
-    io:println("4) View assets by faculty");
-    io:println("5) Overdue check");
-    io:println("6) Add component to asset");
-    io:println("7) Add schedule to asset");
-    io:println("8) Run demo flow (presentation)");
-    io:println("9) Exit\n");
+    io:println("Asset Management Client\nServer base: " + BASE_URL);
 
     while true {
-        string choice = io:readln("Choose (1-9): ");
+        io:println("\n1) Add asset\n2) Update asset\n3) Search asset by tag\n4) Delete asset");
+        io:println("5) View all assets\n6) View by faculty\n7) Overdue check\n8) Add component\n9) Add schedule\n10) Exit");
+        string choice = io:readln("Choose (1-10): ");
+        
         match choice {
             "1" => {
-                Asset asset = buildAssetFromInput(true);
-                check addAsset(asset);
+                // Add Asset
+                string tag = io:readln("Asset Tag: ");
+                string name = io:readln("Name: ");
+                string faculty = io:readln("Faculty: ");
+                string status = io:readln("Status (ACTIVE/UNDER_REPAIR/DISPOSED): ");
+                Asset asset = { assetTag: tag, name: name, faculty: faculty, status: status, components: [], schedules: [] };
+                http:Response|error res = assetClient->post("/", asset);
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "2" => {
+                // Update Asset
                 string tag = io:readln("Asset Tag to update: ");
-                Asset asset = buildAssetFromInput(false);
-                asset.assetTag = tag;
-                check updateAsset(tag, asset);
+                string name = io:readln("Name: ");
+                string faculty = io:readln("Faculty: ");
+                string status = io:readln("Status (ACTIVE/UNDER_REPAIR/DISPOSED): ");
+                Asset asset = { assetTag: tag, name: name, faculty: faculty, status: status, components: [], schedules: [] };
+                http:Response|error res = assetClient->put("/update/" + tag, asset);
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "3" => {
-                check viewAll();
+                // Search Asset by Tag
+                string tag = io:readln("Asset Tag to search: ");
+                http:Response|error res = assetClient->get("/search/" + tag);
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "4" => {
-                string fac = io:readln("Faculty: ");
-                check viewByFaculty(fac);
+                // Delete Asset
+                string tag = io:readln("Asset Tag to delete: ");
+                http:Response|error res = assetClient->delete("/remove/" + tag);
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "5" => {
-                check overdueCheck();
+                // View All Assets
+                http:Response|error res = assetClient->get("/");
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "6" => {
-                string tag = io:readln("Asset Tag: ");
-                Component comp = { componentId: io:readln("Component ID: "), name: io:readln("Name: ") };
-                comp.description = io:readln("Description (optional): ");
-                check addComponentToAsset(tag, comp);
+                // View by Faculty
+                string faculty = io:readln("Faculty name: ");
+                http:Response|error res = assetClient->get("/faculty/" + faculty);
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "7" => {
-                string tag = io:readln("Asset Tag: ");
-                Schedule s = { scheduleId: io:readln("Schedule ID: "), task: io:readln("Task: "), nextDueDate: io:readln("Next Due Date (YYYY-MM-DD): ") };
-                check addScheduleToAsset(tag, s);
+                // Overdue Check
+                http:Response|error res = assetClient->get("/overdue");
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "8" => {
-                check demoFlow();
+                // Add Component
+                string tag = io:readln("Asset Tag: ");
+                string compId = io:readln("Component ID: ");
+                string compName = io:readln("Component Name: ");
+                string compDesc = io:readln("Component Description: ");
+                Component comp = { componentId: compId, name: compName, description: compDesc };
+                http:Response|error res = assetClient->post("/" + tag + "/components/add", comp);
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
             }
             "9" => {
-                io:println("Goodbye");
+                // Add Schedule
+                string tag = io:readln("Asset Tag: ");
+                string schedId = io:readln("Schedule ID: ");
+                string task = io:readln("Task: ");
+                string dueDate = io:readln("Due Date (YYYY-MM-DD): ");
+                Schedule sched = { scheduleId: schedId, task: task, nextDueDate: dueDate };
+                http:Response|error res = assetClient->post("/" + tag + "/schedules/add", sched);
+                if res is error {
+                    io:println("Error: " + res.message());
+                } else {
+                    io:println("Response: " + res.statusCode.toString());
+                    io:println(res.getJsonPayload());
+                }
+            }
+            "10" => {
+                io:println("Goodbye!");
                 break;
             }
             _ => {
-                io:println("Invalid choice");
+                io:println("Invalid choice! Please try again.");
             }
         }
     }
