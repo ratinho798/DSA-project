@@ -1,0 +1,98 @@
+import ballerina/http;
+import ballerina/time;
+
+public type Schedule record {|
+    string type;
+    string nextDueDate; // format "YYYY-MM-DD"
+|};
+
+public type Asset record {|
+    string assetTag;
+    string name;
+    string faculty;
+    string department;
+    string status;
+    string acquiredDate;
+    Schedule[]? schedules;
+|>;
+
+// simple in-memory DB (map keyed by assetTag)
+map<Asset> assets = {};
+
+// helper to seed a couple assets (optional)
+function initSample() {
+    assets["EQ-001"] = {
+        assetTag: "EQ-001",
+        name: "3D Printer",
+        faculty: "Computing & Informatics",
+        department: "Software Engineering",
+        status: "ACTIVE",
+        acquiredDate: "2024-03-10",
+        schedules: [
+            { type: "Quarterly", nextDueDate: "2024-06-10" },
+            { type: "Yearly", nextDueDate: "2025-03-10" }
+        ]
+    };
+    assets["EQ-002"] = {
+        assetTag: "EQ-002",
+        name: "Server",
+        faculty: "Engineering",
+        department: "Networks",
+        status: "UNDER_REPAIR",
+        acquiredDate: "2023-05-20",
+        schedules: [
+            { type: "Monthly", nextDueDate: "2024-09-01" }
+        ]
+    };
+}
+
+initSample();
+
+service /assets on new http:Listener(8080) {
+
+    // 1) View all assets
+    resource function get .() returns Asset[] {
+        Asset[] list = [];
+        foreach var [k, v] in assets {
+            list.push(v);
+        }
+        return list;
+    }
+
+    // 2) View assets by faculty
+    resource function get faculty/[string facultyName]() returns Asset[] {
+        Asset[] list = [];
+        foreach var [k, v] in assets {
+            if v.faculty == facultyName {
+                list.push(v);
+            }
+        }
+        return list;
+    }
+
+    // 3) Overdue check: compares schedule.nextDueDate (YYYY-MM-DD) with today's date
+    resource function get overdue() returns Asset[] {
+        time:Time now = time:currentTime();
+        // time:toString(now) -> "YYYY-MM-DDTHH:MM:SS..." so take first 10 chars
+        string nowStr = time:toString(now);
+        string today = nowStr.substring(0, 10); // "YYYY-MM-DD"
+
+        Asset[] list = [];
+        foreach var [k, v] in assets {
+            if v.schedules is Schedule[] {
+                boolean overdue = false;
+                foreach var s in v.schedules {
+                    // lexicographic compare works because format is YYYY-MM-DD
+                    if s.nextDueDate < today {
+                        overdue = true;
+                        break;
+                    }
+                }
+                if overdue {
+                    list.push(v);
+                }
+            }
+        }
+        return list;
+    }
+}
